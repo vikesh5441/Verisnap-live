@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VeriSnap Live — Rider Pickup Photo Link</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #09090b;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.12) 0px, transparent 50%);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .mirror-video {
+            transform: scaleX(-1);
+        }
+        @keyframes flashEffect {
+            0% { opacity: 0.95; }
+            100% { opacity: 0; }
+        }
+        .animate-flash {
+            animation: flashEffect 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes countPop {
+            0% { transform: scale(0.6); opacity: 0; }
+            30% { transform: scale(1.1); opacity: 1; }
+            85% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0; }
+        }
+        .animate-count {
+            animation: countPop 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="text-zinc-100 min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden">
+
+    <main class="w-full max-w-md bg-zinc-900/75 backdrop-blur-2xl border border-zinc-800/80 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden flex flex-col">
+
+        <!-- Top Header Bar -->
+        <header class="px-4 sm:px-5 py-3.5 border-b border-zinc-800/70 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+                <h1 class="text-sm font-semibold tracking-tight text-white truncate">VeriSnap Live</h1>
+                <p class="text-[11px] text-zinc-400 truncate">15-Min Pickup Photo Link</p>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button id="btnOpenLinkMyNumber" type="button" class="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-[11px] font-semibold text-emerald-300 transition-all active:scale-95">
+                    Link Number
+                </button>
+
+                <div id="liveBadge" class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-zinc-950/80 border border-zinc-800 text-[10px] font-mono font-medium text-zinc-400">
+                    <span id="liveDot" class="w-2 h-2 rounded-full bg-zinc-600"></span>
+                    <span id="liveBadgeText">INIT</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Visible Linked Number Bar -->
+        <div class="px-4 py-2.5 bg-emerald-950/50 border-b border-emerald-500/30 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span id="activeIdentityName" class="text-xs font-semibold text-white truncate">Vikesh Nunkumar</span>
+                    <span id="activeIdentityCodePill" class="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-mono font-semibold text-emerald-300">ID: VS-F8M9J6</span>
+                </div>
+                <p id="activeIdentityPhoneDisplay" class="text-[11px] font-mono text-emerald-300 truncate mt-0.5">
+                    Linked WhatsApp: +27724212580 (27724212580)
+                </p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-700 text-[10px] font-mono text-zinc-300 shrink-0">
+                NO SAVE
+            </span>
+        </div>
+
+        <!-- Viewfinder Stage -->
+        <div class="relative w-full aspect-[3/4] max-h-[58vh] bg-zinc-950 overflow-hidden flex items-center justify-center">
+
+            <div id="stateLoading" class="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center bg-zinc-950">
+                <div class="w-11 h-11 rounded-full border-2 border-zinc-800 border-t-emerald-400 animate-spin mb-3"></div>
+                <p class="text-sm font-medium text-zinc-200">Requesting Front Camera...</p>
+                <p class="text-xs text-zinc-500 mt-1 max-w-[240px]">Allow camera access over HTTPS to take a live pickup photo.</p>
+            </div>
+
+            <div id="stateError" class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center p-5 text-center bg-zinc-950/95">
+                <h2 id="errorTitle" class="text-sm font-semibold text-white mb-1">Camera Unavailable</h2>
+                <p id="errorMessage" class="text-[11px] text-zinc-400 leading-relaxed max-w-[290px] mb-4">
+                    Open this app over HTTPS and allow camera permission, then tap Try Again.
+                </p>
+                <button id="btnRetryCamera" type="button" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-xs">
+                    Try Again
+                </button>
+            </div>
+
+            <video id="cameraFeed" autoplay playsinline muted class="w-full h-full object-cover mirror-video"></video>
+
+            <div id="faceGuideOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-300">
+                <div class="w-[62%] aspect-[3/4] rounded-[50%] border-2 border-dashed border-white/35 shadow-[0_0_0_9999px_rgba(9,9,11,0.38)] flex items-end justify-center pb-4">
+                    <span class="px-2.5 py-0.5 rounded-full bg-black/50 text-[10px] font-medium text-white/80">Align face for driver</span>
+                </div>
+            </div>
+
+            <div id="countdownOverlay" class="hidden pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/25">
+                <span id="countdownNumber" class="text-7xl font-bold text-white font-mono">3</span>
+            </div>
+
+            <div id="previewContainer" class="hidden absolute inset-0 z-20 bg-zinc-950 flex flex-col">
+                <img id="capturedImage" alt="Captured Live Pickup Photo" class="w-full h-full object-cover" />
+                <div class="absolute bottom-3 left-3 right-3 px-3 py-2 rounded-xl bg-zinc-950/85 backdrop-blur-md border border-emerald-500/30 flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                        <p id="captureTargetNumber" class="text-[11px] font-mono font-semibold text-emerald-300 truncate">Linked: +27724212580</p>
+                        <p id="captureTimestamp" class="text-[10px] font-mono text-zinc-400"></p>
+                    </div>
+                    <span id="linkStatusPill" class="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">IN MEMORY</span>
+                </div>
+            </div>
+
+            <div id="flashLayer" class="pointer-events-none absolute inset-0 z-40 bg-white opacity-0"></div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="p-4 sm:p-5 bg-zinc-900/95 border-t border-zinc-800/80 space-y-3">
+
+            <div id="liveControls" class="flex items-center justify-between gap-4">
+                <button id="btnTimerToggle" type="button" class="w-14 h-14 rounded-2xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/70 flex flex-col items-center justify-center text-zinc-300 text-[10px] font-mono font-semibold">
+                    <span>TIMER</span>
+                    <span id="timerLabel" class="text-zinc-400 mt-0.5">OFF</span>
+                </button>
+
+                <button id="btnShutter" type="button" disabled aria-label="Capture Pickup Photo" class="group relative w-20 h-20 rounded-full p-1.5 border-4 border-white/90 disabled:opacity-40 disabled:pointer-events-none transition-transform active:scale-90">
+                    <div class="w-full h-full rounded-full bg-white group-hover:bg-emerald-400 transition-colors"></div>
+                </button>
+
+                <button id="btnSwitchCamera" type="button" disabled class="w-14 h-14 rounded-2xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/70 flex flex-col items-center justify-center text-zinc-300 text-[10px] font-mono font-semibold disabled:opacity-35">
+                    <span>CAM</span>
+                    <span id="camIndexLabel" class="text-zinc-400 mt-0.5">FRONT</span>
+                </button>
+            </div>
+
+            <div id="reviewControls" class="hidden space-y-2.5">
+                <p id="reviewLinkedNumberLine" class="text-xs font-mono text-emerald-300 bg-zinc-950 border border-emerald-500/30 rounded-xl px-3 py-2 truncate">
+                    Linked WhatsApp: +27724212580
+                </p>
+
+                <div id="generatedViewLinkBox" class="hidden p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-mono uppercase text-zinc-400">15-Min Driver Photo Link</span>
+                        <button id="btnCopyViewLink" type="button" class="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 underline">Copy Link</button>
+                    </div>
+                    <p id="generatedViewLinkText" class="text-[11px] font-mono text-emerald-300 break-all"></p>
+                </div>
+
+                <button id="btnSendPhotoLink" type="button" class="w-full py-3.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-sm transition-all active:scale-95 flex items-center justify-center">
+                    Send Photo Link to WhatsApp
+                </button>
+
+                <button id="btnRetake" type="button" class="w-full py-2.5 px-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-xs transition-all active:scale-95">
+                    Retake Photo
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Link Number Modal -->
+    <div id="linkMyNumberModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-white">Link WhatsApp Number</h2>
+                <button id="btnCloseLinkMyNumber" type="button" class="w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs">✕</button>
+            </div>
+            <form id="linkMyNumberForm" class="p-5 space-y-3">
+                <div>
+                    <label for="myNumberNameInput" class="block text-[11px] text-zinc-400 mb-1">Name</label>
+                    <input id="myNumberNameInput" type="text" required value="Vikesh Nunkumar" class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-xs text-white" />
+                </div>
+                <div>
+                    <label for="myNumberPhoneInput" class="block text-[11px] text-zinc-400 mb-1">Linked WhatsApp Number</label>
+                    <input id="myNumberPhoneInput" type="tel" inputmode="numeric" required value="0724212580" class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-xs font-mono text-white" />
+                </div>
+                <div>
+                    <label for="myNumberCodeInput" class="block text-[11px] text-zinc-400 mb-1">Unique ID</label>
+                    <input id="myNumberCodeInput" type="text" required class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-xs font-mono uppercase text-emerald-300" />
+                </div>
+                <button type="submit" class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-xs">
+                    Save Linked Number
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toastBanner" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full bg-zinc-800 border border-zinc-700 text-xs font-medium text-white shadow-xl opacity-0 pointer-events-none transition-all duration-300"></div>
+    <canvas id="captureCanvas" class="hidden"></canvas>
+
+    <script>
+        (() => {
+            const STORAGE_LINK = 'verisnap_linked_profile_v1';
+
+            const videoEl = document.getElementById('cameraFeed');
+            const canvasEl = document.getElementById('captureCanvas');
+            const stateLoading = document.getElementById('stateLoading');
+            const stateError = document.getElementById('stateError');
+            const errorTitle = document.getElementById('errorTitle');
+            const errorMessage = document.getElementById('errorMessage');
+            const btnRetryCamera = document.getElementById('btnRetryCamera');
+
+            const liveDot = document.getElementById('liveDot');
+            const liveBadgeText = document.getElementById('liveBadgeText');
+            const activeIdentityName = document.getElementById('activeIdentityName');
+            const activeIdentityCodePill = document.getElementById('activeIdentityCodePill');
+            const activeIdentityPhoneDisplay = document.getElementById('activeIdentityPhoneDisplay');
+
+            const faceGuideOverlay = document.getElementById('faceGuideOverlay');
+            const countdownOverlay = document.getElementById('countdownOverlay');
+            const countdownNumber = document.getElementById('countdownNumber');
+            const flashLayer = document.getElementById('flashLayer');
+
+            const previewContainer = document.getElementById('previewContainer');
+            const capturedImage = document.getElementById('capturedImage');
+            const captureTargetNumber = document.getElementById('captureTargetNumber');
+            const captureTimestamp = document.getElementById('captureTimestamp');
+            const linkStatusPill = document.getElementById('linkStatusPill');
+
+            const liveControls = document.getElementById('liveControls');
+            const reviewControls = document.getElementById('reviewControls');
+            const reviewLinkedNumberLine = document.getElementById('reviewLinkedNumberLine');
+            const generatedViewLinkBox = document.getElementById('generatedViewLinkBox');
+            const generatedViewLinkText = document.getElementById('generatedViewLinkText');
+            const btnCopyViewLink = document.getElementById('btnCopyViewLink');
+            const btnTimerToggle = document.getElementById('btnTimerToggle');
+            const timerLabel = document.getElementById('timerLabel');
+            const btnShutter = document.getElementById('btnShutter');
+            const btnSwitchCamera = document.getElementById('btnSwitchCamera');
+            const camIndexLabel = document.getElementById('camIndexLabel');
+            const btnSendPhotoLink = document.getElementById('btnSendPhotoLink');
+            const btnRetake = document.getElementById('btnRetake');
+
+            const btnOpenLinkMyNumber = document.getElementById('btnOpenLinkMyNumber');
+            const linkMyNumberModal = document.getElementById('linkMyNumberModal');
+            const btnCloseLinkMyNumber = document.getElementById('btnCloseLinkMyNumber');
+            const linkMyNumberForm = document.getElementById('linkMyNumberForm');
+            const myNumberNameInput = document.getElementById('myNumberNameInput');
+            const myNumberPhoneInput = document.getElementById('myNumberPhoneInput');
+            const myNumberCodeInput = document.getElementById('myNumberCodeInput');
+            const toastBanner = document.getElementById('toastBanner');
+
+            let currentStream = null;
+            let videoDevices = [];
+            let camIdx = 0;
+            let useTimer = false;
+            let isCounting = false;
+            let inMemorySelfie = null;
+            let latestViewUrl = '';
+            let linkedProfile = {
+                name: 'Vikesh Nunkumar',
+                phone: '27724212580',
+                id: 'VS-F8M9J6'
+            };
+
+            function normalizePhone(raw) {
+                let digits = String(raw || '').replace(/\D/g, '');
+                if (!digits) return '27724212580';
+                if (digits.startsWith('0') && digits.length === 10) {
+                    digits = '27' + digits.slice(1);
+                }
+                return digits;
+            }
+
+            function extractIdFromUrl() {
+                try {
+                    const params = new URLSearchParams(window.location.search);
+                    const qId = params.get('id');
+                    if (qId && qId.trim()) return qId.trim().toUpperCase();
+                    const hash = (window.location.hash || '').replace(/^#/, '');
+                    if (hash) {
+                        const hp = new URLSearchParams(hash.includes('=') ? hash : `id=${hash}`);
+                        const hId = hp.get('id');
+                        if (hId && hId.trim()) return hId.trim().toUpperCase();
+                    }
+                } catch (_) {}
+                return null;
+            }
+
+            function renderLinkedNumberUI() {
+                const cleanPhone = normalizePhone(linkedProfile.phone);
+                activeIdentityName.textContent = linkedProfile.name;
+                activeIdentityCodePill.textContent = `ID: ${linkedProfile.id}`;
+                activeIdentityPhoneDisplay.textContent = `Linked WhatsApp: +${cleanPhone} (${cleanPhone})`;
+                reviewLinkedNumberLine.textContent = `Linked WhatsApp: +${cleanPhone}`;
+                captureTargetNumber.textContent = `Linked: +${cleanPhone}`;
+            }
+
+            function loadSavedProfile() {
+                try {
+                    const savedProfile = JSON.parse(localStorage.getItem(STORAGE_LINK) || 'null');
+                    if (savedProfile && savedProfile.phone) {
+                        linkedProfile = {
+                            name: savedProfile.name || 'Vikesh Nunkumar',
+                            phone: normalizePhone(savedProfile.phone),
+                            id: savedProfile.id || linkedProfile.id
+                        };
+                    }
+                } catch (_) {}
+
+                const urlId = extractIdFromUrl();
+                if (urlId) {
+                    linkedProfile.id = urlId;
+                }
+
+                myNumberNameInput.value = linkedProfile.name;
+                myNumberPhoneInput.value = linkedProfile.phone;
+                myNumberCodeInput.value = linkedProfile.id;
+                renderLinkedNumberUI();
+            }
+
+            let toastTimer = null;
+            function showToast(msg) {
+                toastBanner.textContent = msg;
+                toastBanner.classList.remove('opacity-0');
+                toastBanner.classList.add('opacity-100');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => {
+                    toastBanner.classList.remove('opacity-100');
+                    toastBanner.classList.add('opacity-0');
+                }, 3000);
+            }
+
+            function setStatusPill(text, dotClass) {
+                liveBadgeText.textContent = text;
+                liveDot.className = `w-2 h-2 rounded-full ${dotClass}`;
+            }
+
+            function stopStream() {
+                if (currentStream) {
+                    currentStream.getTracks().forEach((t) => t.stop());
+                    currentStream = null;
+                }
+            }
+
+            async function startCamera(deviceId = '') {
+                stopStream();
+                stateError.classList.add('hidden');
+                previewContainer.classList.add('hidden');
+                reviewControls.classList.add('hidden');
+                liveControls.classList.remove('hidden');
+                faceGuideOverlay.classList.remove('opacity-0');
+                stateLoading.classList.remove('hidden');
+                btnShutter.disabled = true;
+                setStatusPill('INIT', 'bg-amber-400 animate-pulse');
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    stateLoading.classList.add('hidden');
+                    stateError.classList.remove('hidden');
+                    errorTitle.textContent = 'HTTPS Camera Required';
+                    errorMessage.textContent = 'Camera access requires HTTPS or localhost.';
+                    setStatusPill('LOCKED', 'bg-rose-500');
+                    return;
+                }
+
+                const constraintsList = deviceId
+                    ? [{ video: { deviceId: { exact: deviceId } }, audio: false }]
+                    : [
+                        { video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+                        { video: { facingMode: 'user' }, audio: false },
+                        { video: true, audio: false }
+                    ];
+
+                let stream = null;
+                for (const c of constraintsList) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia(c);
+                        if (stream) break;
+                    } catch (err) {
+                        if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) break;
+                    }
+                }
+
+                if (!stream) {
+                    stateLoading.classList.add('hidden');
+                    stateError.classList.remove('hidden');
+                    errorTitle.textContent = 'Camera Permission Needed';
+                    errorMessage.textContent = 'Allow front camera access in your browser over HTTPS and tap Try Again.';
+                    setStatusPill('LOCKED', 'bg-rose-500');
+                    return;
+                }
+
+                currentStream = stream;
+                videoEl.srcObject = stream;
+                try { await videoEl.play(); } catch (_) {}
+
+                try {
+                    const devs = await navigator.mediaDevices.enumerateDevices();
+                    videoDevices = devs.filter((d) => d.kind === 'videoinput');
+                    btnSwitchCamera.disabled = videoDevices.length <= 1;
+                    camIndexLabel.textContent = videoDevices.length > 1 ? `CAM ${camIdx + 1}` : 'FRONT';
+                } catch (_) {}
+
+                stateLoading.classList.add('hidden');
+                btnShutter.disabled = false;
+                setStatusPill('LIVE', 'bg-emerald-400 animate-pulse');
+            }
+
+            async function createTempPhotoLinkAndOpenWhatsApp() {
+                if (!inMemorySelfie) return;
+
+                const cleanPhone = normalizePhone(linkedProfile.phone);
+                btnSendPhotoLink.disabled = true;
+                btnSendPhotoLink.textContent = 'Creating 15-Min Photo Link...';
+                linkStatusPill.textContent = 'CREATING...';
+
+                try {
+                    const res = await fetch('/.netlify/functions/selfie', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            phone: cleanPhone,
+                            identityId: linkedProfile.id,
+                            name: linkedProfile.name,
+                            timestamp: inMemorySelfie.timestamp,
+                            imageBase64: inMemorySelfie.dataUrl
+                        })
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.viewUrl) {
+                        throw new Error(data.error || `HTTP ${res.status}`);
+                    }
+
+                    latestViewUrl = data.viewUrl;
+                    generatedViewLinkText.textContent = latestViewUrl;
+                    generatedViewLinkBox.classList.remove('hidden');
+                    linkStatusPill.textContent = 'LINK READY';
+
+                    const msg = encodeURIComponent(
+                        `My live pickup photo (${linkedProfile.name} • ${linkedProfile.id}): ${latestViewUrl}`
+                    );
+                    window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank', 'noopener,noreferrer');
+                    showToast('15-min photo link created — opening WhatsApp');
+                } catch (err) {
+                    linkStatusPill.textContent = 'LINK FAILED';
+                    showToast(`Could not create link (${err.message || 'function unavailable'})`);
+                } finally {
+                    btnSendPhotoLink.disabled = false;
+                    btnSendPhotoLink.textContent = 'Send Photo Link to WhatsApp';
+                }
+            }
+
+            function captureFrameInMemory() {
+                if (!currentStream || videoEl.readyState < 2) return;
+
+                flashLayer.classList.remove('animate-flash');
+                void flashLayer.offsetWidth;
+                flashLayer.classList.add('animate-flash');
+
+                const w = videoEl.videoWidth || 720;
+                const h = videoEl.videoHeight || 960;
+                canvasEl.width = w;
+                canvasEl.height = h;
+
+                const ctx = canvasEl.getContext('2d');
+                ctx.save();
+                ctx.translate(w, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(videoEl, 0, 0, w, h);
+                ctx.restore();
+
+                const now = new Date();
+                const timestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+                const dataUrl = canvasEl.toDataURL('image/jpeg', 0.85);
+
+                inMemorySelfie = { dataUrl, timestamp };
+                latestViewUrl = '';
+                generatedViewLinkBox.classList.add('hidden');
+                linkStatusPill.textContent = 'IN MEMORY';
+
+                capturedImage.src = dataUrl;
+                captureTimestamp.textContent = timestamp;
+                renderLinkedNumberUI();
+
+                previewContainer.classList.remove('hidden');
+                faceGuideOverlay.classList.add('opacity-0');
+                liveControls.classList.add('hidden');
+                reviewControls.classList.remove('hidden');
+                setStatusPill('CAPTURED', 'bg-sky-400');
+            }
+
+            function handleShutter() {
+                if (isCounting || !currentStream) return;
+                if (!useTimer) {
+                    captureFrameInMemory();
+                    return;
+                }
+
+                isCounting = true;
+                btnShutter.disabled = true;
+                countdownOverlay.classList.remove('hidden');
+                let n = 3;
+                const step = () => {
+                    if (n > 0) {
+                        countdownNumber.textContent = String(n);
+                        countdownNumber.classList.remove('animate-count');
+                        void countdownNumber.offsetWidth;
+                        countdownNumber.classList.add('animate-count');
+                        n -= 1;
+                        setTimeout(step, 1000);
+                    } else {
+                        countdownOverlay.classList.add('hidden');
+                        isCounting = false;
+                        captureFrameInMemory();
+                    }
+                };
+                step();
+            }
+
+            btnCopyViewLink.addEventListener('click', () => {
+                if (!latestViewUrl) return;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(latestViewUrl).then(
+                        () => showToast('Driver photo link copied'),
+                        () => showToast('Copy failed')
+                    );
+                }
+            });
+
+            btnTimerToggle.addEventListener('click', () => {
+                useTimer = !useTimer;
+                timerLabel.textContent = useTimer ? '3S' : 'OFF';
+            });
+
+            btnShutter.addEventListener('click', handleShutter);
+            btnRetryCamera.addEventListener('click', () => startCamera());
+
+            btnSwitchCamera.addEventListener('click', () => {
+                if (videoDevices.length <= 1) return;
+                camIdx = (camIdx + 1) % videoDevices.length;
+                startCamera(videoDevices[camIdx].deviceId);
+            });
+
+            btnSendPhotoLink.addEventListener('click', createTempPhotoLinkAndOpenWhatsApp);
+
+            btnRetake.addEventListener('click', () => {
+                inMemorySelfie = null;
+                latestViewUrl = '';
+                generatedViewLinkBox.classList.add('hidden');
+                previewContainer.classList.add('hidden');
+                reviewControls.classList.add('hidden');
+                liveControls.classList.remove('hidden');
+                faceGuideOverlay.classList.remove('opacity-0');
+                btnShutter.disabled = !currentStream;
+                setStatusPill(currentStream ? 'LIVE' : 'LOCKED', currentStream ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500');
+            });
+
+            btnOpenLinkMyNumber.addEventListener('click', () => linkMyNumberModal.classList.remove('hidden'));
+            btnCloseLinkMyNumber.addEventListener('click', () => linkMyNumberModal.classList.add('hidden'));
+
+            linkMyNumberForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                linkedProfile = {
+                    name: myNumberNameInput.value.trim() || 'Vikesh Nunkumar',
+                    phone: normalizePhone(myNumberPhoneInput.value),
+                    id: (myNumberCodeInput.value || '').trim().toUpperCase() || linkedProfile.id
+                };
+                localStorage.setItem(STORAGE_LINK, JSON.stringify(linkedProfile));
+                renderLinkedNumberUI();
+                linkMyNumberModal.classList.add('hidden');
+                showToast(`Linked WhatsApp: +${linkedProfile.phone}`);
+            });
+
+            window.addEventListener('beforeunload', stopStream);
+            window.addEventListener('DOMContentLoaded', () => {
+                loadSavedProfile();
+                startCamera();
+            });
+        })();
+    </script>
+</body>
+</html>
